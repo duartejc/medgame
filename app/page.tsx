@@ -74,21 +74,18 @@ function Icon({ name, size = 20, color = "currentColor", stroke = 2 }: { name: s
   );
 }
 
-// ── Logo ───────────────────────────────────────────────────────
+// ── Logo — lockup oficial Avelis Plantão+ ──────────────────────
+// Usa plantao-plus-dark.svg (fundo escuro): PLANTÃO em #EDF1F5,
+// "+" em coral #FF6C8A, "by Avelis" com wordmark vetorial.
 function Logo() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-      <div className="av-logo-mark">
-        <span className="av-logo-beat" />
-        <span className="av-logo-ring" />
-      </div>
-      <div className="av-logo-wordmark">
-        <div className="av-logo-name">
-          PLANTÃO<span style={{ color: "var(--blue)" }}>+</span>
-        </div>
-        <div className="av-logo-by">by Avelis</div>
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/assets/plantao-plus-dark.svg"
+      alt="Plantão+ by Avelis"
+      className="av-logo-svg"
+      draggable={false}
+    />
   );
 }
 
