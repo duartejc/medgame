@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Plantão — simulador clínico",
+  title: "PLANTÃO+ — Simulador Clínico",
   description:
-    "Tome decisões no plantão, salve seus pacientes e treine raciocínio clínico com IA.",
+    "Atenda casos de pronto-socorro, tome decisões clínicas e receba feedback de IA. Treine raciocínio clínico com o Assistente Clínico Avelis.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
