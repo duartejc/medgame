@@ -181,6 +181,102 @@ body {
 .av-fade-in { animation: fadeIn .4s var(--ease) both; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Intro onboarding — deixar claro que é jogo ──────────────── */
+.av-intro-header {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0,97,224,0.12), rgba(47,212,160,0.08));
+  border: 1px solid rgba(0,97,224,0.22);
+}
+.av-intro-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-bright);
+  margin-bottom: 2px;
+}
+.av-intro-tagline {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cloud);
+}
+.av-gamification-badges {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.av-badge-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cloud-dim);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.av-badge-icon {
+  display: block;
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* "Como jogar" — fluxo visual das fases */
+.av-intro-howto {
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  backdrop-filter: blur(var(--glass-blur));
+}
+.av-phase-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  overflow-x: auto;
+}
+.av-phase-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.av-phase-circle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue-bright), var(--blue));
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: 'Space Grotesk', sans-serif;
+  box-shadow: 0 4px 12px rgba(0,97,224,0.3);
+}
+.av-phase-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cloud-faint);
+  text-align: center;
+  max-width: 50px;
+  line-height: 1.2;
+}
+.av-phase-arrow {
+  font-size: 18px;
+  color: var(--cloud-faint);
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
 /* ── Screen base ───────────────────────────────────────────── */
 .av-screen { padding: 18px 18px 0; }
 

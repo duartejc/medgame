@@ -209,11 +209,33 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
   const initials = p.name.replace(/^(Sr|Sra|Dr|Dra)\.?\s+/i, "").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div className="av-screen">
-      <div className="av-eyebrow av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>
+      {/* Headline: deixar claro que é um jogo */}
+      <div className="av-intro-header av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 20 }}>🎮</span>
+          <div>
+            <div className="av-intro-tag">Simulador Clínico</div>
+            <div className="av-intro-tagline">Treine raciocínio clínico com IA</div>
+          </div>
+        </div>
+        <div className="av-gamification-badges">
+          <div className="av-badge-item">
+            <span className="av-badge-icon">⭐</span> 0–100 XP
+          </div>
+          <div className="av-badge-item">
+            <span className="av-badge-icon">🔥</span> Streak
+          </div>
+          <div className="av-badge-item">
+            <span className="av-badge-icon">⚠️</span> Difícil
+          </div>
+        </div>
+      </div>
+
+      <div className="av-eyebrow av-stagger" style={{ "--d": "60ms" } as React.CSSProperties}>
         <span className="av-dot-live" /> Caso ao vivo · Sala Vermelha
       </div>
 
-      <Glass className="av-stagger av-patient-card" style={{ "--d": "90ms" } as React.CSSProperties} accent="linear-gradient(180deg,var(--blue),var(--emerald))">
+      <Glass className="av-stagger av-patient-card" style={{ "--d": "120ms" } as React.CSSProperties} accent="linear-gradient(180deg,var(--blue),var(--emerald))">
         <div className="av-patient-head">
           <Avatar initials={initials} size={54} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -229,17 +251,47 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
         <p className="av-context">{medCase.scene}</p>
       </Glass>
 
+      {/* Como jogar — visual do fluxo de fases */}
       <div className="av-stagger" style={{ "--d": "180ms" } as React.CSSProperties}>
+        <div className="av-intro-howto">
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cloud-dim)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Seu fluxo neste plantão
+          </div>
+          <div className="av-phase-flow">
+            <div className="av-phase-step">
+              <div className="av-phase-circle">1</div>
+              <div className="av-phase-label">Anamnese</div>
+            </div>
+            <div className="av-phase-arrow">→</div>
+            <div className="av-phase-step">
+              <div className="av-phase-circle">2</div>
+              <div className="av-phase-label">Exames</div>
+            </div>
+            <div className="av-phase-arrow">→</div>
+            <div className="av-phase-step">
+              <div className="av-phase-circle">3</div>
+              <div className="av-phase-label">Conduta</div>
+            </div>
+            <div className="av-phase-arrow">→</div>
+            <div className="av-phase-step">
+              <div className="av-phase-circle">4</div>
+              <div className="av-phase-label">Resultado</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="av-stagger" style={{ "--d": "260ms" } as React.CSSProperties}>
         <Glass className="av-mission">
           <Icon name="spark" size={18} color="var(--amber)" stroke={1.8} />
           <div>
             <strong>Sua missão</strong>
-            <span>Avalie, investigue e estabilize a paciente. Cada minuto conta.</span>
+            <span>Avalie, investigue e estabilize a paciente. Cada minuto conta. A IA vai analisar suas decisões ao final.</span>
           </div>
         </Glass>
       </div>
 
-      <div className="av-stagger av-cta-fixed" style={{ "--d": "260ms" } as React.CSSProperties}>
+      <div className="av-stagger av-cta-fixed" style={{ "--d": "320ms" } as React.CSSProperties}>
         <Btn variant="primary" full icon="chevR" onClick={onStart}>Iniciar atendimento</Btn>
       </div>
     </div>
