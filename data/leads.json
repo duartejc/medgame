@@ -1,0 +1,12 @@
+[
+  {
+    "email": "teste@x.com",
+    "role": "Estudante (internato)",
+    "specialty": "Emergência",
+    "createdAt": "2026-06-01T14:47:16.923Z"
+  },
+  {
+    "email": "teste@deepseek.com",
+    "createdAt": "2026-06-01T14:54:36.189Z"
+  }
+]
