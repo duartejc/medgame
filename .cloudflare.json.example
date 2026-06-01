@@ -1,0 +1,22 @@
+{
+  "account_id": "seu-account-id-aqui",
+  "project_name": "plantao-medgame",
+  "kv_namespace_id": "leads-kv-id-aqui",
+  "environment_variables": {
+    "DEEPSEEK_MODEL": "deepseek-chat"
+  },
+  "secrets": {
+    "DEEPSEEK_API_KEY": "sk-... (adicione via Cloudflare Dashboard)"
+  },
+  "build": {
+    "command": "npm run build",
+    "output_directory": ".next",
+    "root_dir": "."
+  },
+  "routes": [
+    {
+      "pattern": "/api/*",
+      "zone_name": "seu-dominio.com"
+    }
+  ]
+}

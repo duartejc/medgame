@@ -4,3 +4,9 @@ node_modules
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+data/
+.wrangler/
+dist/
+build/
+wrangler-account-id.json
+.cloudflare/

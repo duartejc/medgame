@@ -43,8 +43,28 @@ lib/deepseek.ts       Cliente OpenAI-compatible para DeepSeek
 - "Caso do dia" compartilhável (estilo Wordle).
 - Analytics de funil (PostHog) + webhook para o CRM.
 
+## Deploy
+
+Veja [DEPLOY.md](DEPLOY.md) para instruções completas.
+
+**TL;DR:**
+```bash
+# Localmente
+npm install && npm run dev
+
+# Deploy na Cloudflare Pages (git + Dashboard)
+git push origin main
+# Depois configure DEEPSEEK_API_KEY + KV binding no Dashboard
+
+# Ou CLI (imediato)
+npm run deploy:cf-pages
+```
+
+Apps em produção em `https://seu-projeto.pages.dev`.
+
 ## Hardening antes de produção
 
 - `lib/cases.ts` é importado no client — a "verdade" do caso vai no bundle.
   Em produção, servir ao client só uma visão sanitizada (sem `correct`/`harmful`/`truth`).
 - Rate limit nas rotas de IA; validação de input; custo por sessão.
+- Leads persistem em Cloudflare KV (replicado globalmente); webhook → CRM em produção.

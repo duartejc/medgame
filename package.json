@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deploy:cf-pages": "npm run build && wrangler pages publish .next --project-name plantao-medgame --branch main",
+    "deploy:cf-workers": "wrangler deploy",
+    "logs": "wrangler pages deployment tail --project-name plantao-medgame"
   },
   "dependencies": {
     "next": "latest",
@@ -18,6 +21,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "wrangler": "^4.96.0"
   }
 }

@@ -3,12 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { CASES } from "@/lib/cases";
 import type { Result } from "@/lib/engine";
+import { Footer } from "@/components/Footer";
 
 type Phase = "intro" | "anamnese" | "exams" | "decision" | "result" | "lead";
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 const medCase = CASES[0];
 const QUESTION_COST = 2; // minutos por pergunta na anamnese
+const PHASE_TRANSITION_MS = 350; // duração da saída antes de mudar
 
 const SUGGESTED = [
   "O que o senhor estava fazendo quando a dor começou?",
@@ -28,6 +30,7 @@ const PHASES: { id: Phase; label: string }[] = [
 
 export default function Game() {
   const [phase, setPhase] = useState<Phase>("intro");
+  const [isExiting, setIsExiting] = useState(false);
   const [time, setTime] = useState(0);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -39,11 +42,22 @@ export default function Game() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [debrief, setDebrief] = useState<any>(null);
+  const [xp, setXp] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [xpPopup, setXpPopup] = useState<{ x: number; y: number; value: number } | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, patientTyping]);
+
+  function transitionTo(nextPhase: Phase) {
+    setIsExiting(true);
+    setTimeout(() => {
+      setPhase(nextPhase);
+      setIsExiting(false);
+    }, PHASE_TRANSITION_MS);
+  }
 
   const overBudget = time > medCase.timeBudget;
 
@@ -106,7 +120,23 @@ export default function Game() {
       if (data.error) throw new Error(data.error);
       setResult(data.result);
       setDebrief(data.debrief);
-      setPhase("result");
+
+      // Atualiza XP e streak baseado no resultado
+      const gainedXp = data.result.score;
+      setXp((prev) => Math.min(prev + gainedXp, 100));
+
+      // Mostra popup de XP
+      setXpPopup({ x: window.innerWidth / 2, y: window.innerHeight / 2, value: gainedXp });
+      setTimeout(() => setXpPopup(null), 1200);
+
+      // Incrementa streak se recuperou
+      if (data.result.state === "recuperado") {
+        setStreak((prev) => prev + 1);
+      } else {
+        setStreak(0); // Reseta streak
+      }
+
+      transitionTo("result");
     } catch (e: any) {
       setError(e.message || "Falha ao calcular o desfecho.");
     } finally {
@@ -115,7 +145,7 @@ export default function Game() {
   }
 
   function reset() {
-    setPhase("intro");
+    transitionTo("intro");
     setTime(0);
     setChat([]);
     setExams([]);
@@ -124,6 +154,7 @@ export default function Game() {
     setResult(null);
     setDebrief(null);
     setError("");
+    // Mantém XP e streak entre casos
   }
 
   return (
@@ -139,6 +170,44 @@ export default function Game() {
           </div>
         )}
       </div>
+
+      {/* XP/Streak Meter */}
+      {(xp > 0 || streak > 0) && (
+        <div className="meter">
+          <div className={`meter-streak ${streak > 0 ? "hot" : "cold"}`}>
+            {streak > 0 ? streak : "—"}
+          </div>
+          <div className="meter-xp">
+            <div className="label">
+              ⭐ experiência
+              {xp >= 100 && " · LEVEL UP! 🚀"}
+            </div>
+            <div className="bar">
+              <div className="milestone" style={{ "--milestone-pos": "25%" } as any} />
+              <div className="milestone" style={{ "--milestone-pos": "50%" } as any} />
+              <div className="milestone" style={{ "--milestone-pos": "75%" } as any} />
+              <div className="fill" style={{ width: `${xp}%` }} />
+            </div>
+            <div className="text">
+              {xp}/100 XP {xp === 100 && "🎉"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* XP Popup */}
+      {xpPopup && (
+        <div
+          className="xp-popup"
+          style={{
+            left: `${xpPopup.x}px`,
+            top: `${xpPopup.y}px`,
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          +{xpPopup.value} XP
+        </div>
+      )}
 
       {phase !== "intro" && phase !== "lead" && (
         <div className="phase-nav">
@@ -160,7 +229,7 @@ export default function Game() {
 
       {/* INTRO */}
       {phase === "intro" && (
-        <>
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
           <div className="card">
             <span className="hero-kicker">🚨 Caso ao vivo · 02h14</span>
             <div style={{ marginTop: 10 }}>
@@ -180,18 +249,18 @@ export default function Game() {
             </div>
             <Vitals />
           </div>
-          <button className="btn-primary btn-block" onClick={() => setPhase("anamnese")}>
+          <button className="btn-primary btn-block" onClick={() => transitionTo("anamnese")}>
             Bora salvar esse paciente →
           </button>
           <p className="center small muted" style={{ marginTop: 16 }}>
             Treino simulado · não substitui conduta médica real.
           </p>
-        </>
+        </div>
       )}
 
       {/* ANAMNESE */}
       {phase === "anamnese" && (
-        <>
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
           <div className="card">
             <div className="patient-row" style={{ marginTop: 0, marginBottom: 14 }}>
               <div className="avatar">{initials(medCase.patient.name)}</div>
@@ -238,15 +307,15 @@ export default function Game() {
             {error && <div className="error">{error}</div>}
             <p className="hint">⏱ cada pergunta queima {QUESTION_COST} min do plantão.</p>
           </div>
-          <button className="btn-primary btn-block" onClick={() => setPhase("exams")}>
+          <button className="btn-primary btn-block" onClick={() => transitionTo("exams")}>
             Pedir exames →
           </button>
-        </>
+        </div>
       )}
 
       {/* EXAMS */}
       {phase === "exams" && (
-        <>
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
           <div className="card">
             <h2>Exames e beira-leito</h2>
             <p className="small muted">
@@ -269,15 +338,15 @@ export default function Game() {
               );
             })}
           </div>
-          <button className="btn-primary btn-block" onClick={() => setPhase("decision")}>
+          <button className="btn-primary btn-block" onClick={() => transitionTo("decision")}>
             Definir hipótese e conduta →
           </button>
-        </>
+        </div>
       )}
 
       {/* DECISION */}
       {phase === "decision" && (
-        <>
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
           <div className="card">
             <h2>Hipótese diagnóstica</h2>
             <p className="small muted">Escolha a principal.</p>
@@ -314,12 +383,12 @@ export default function Game() {
           >
             {loading ? <span className="spinner" /> : "Confirmar conduta e ver desfecho"}
           </button>
-        </>
+        </div>
       )}
 
       {/* RESULT */}
       {phase === "result" && result && debrief && (
-        <>
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
           <div className={`outcome-banner ${result.state}`}>
             <div className="state">{stateLabel(result.state)}</div>
             <div className="score">{result.score}</div>
@@ -367,7 +436,7 @@ export default function Game() {
             <div className="share-card">{shareText(result)}</div>
             <div className="btn-row">
               <button onClick={() => copyShare(result)}>Copiar resultado</button>
-              <button className="btn-primary" onClick={() => setPhase("lead")}>
+              <button className="btn-primary" onClick={() => transitionTo("lead")}>
                 Salvar streak e ver ranking →
               </button>
             </div>
@@ -376,11 +445,17 @@ export default function Game() {
           <button onClick={reset} className="btn-block">
             Jogar outro caso
           </button>
-        </>
+        </div>
       )}
 
       {/* LEAD CAPTURE */}
-      {phase === "lead" && <LeadForm result={result} onDone={reset} />}
+      {phase === "lead" && (
+        <div className={`phase ${isExiting ? "exit" : ""}`}>
+          <LeadForm result={result} onDone={reset} />
+        </div>
+      )}
+
+      <Footer />
     </div>
   );
 }

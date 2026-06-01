@@ -1,0 +1,30 @@
+name = "plantao-medgame"
+type = "javascript"
+account_id = ""
+workers_dev = true
+route = ""
+zone_id = ""
+
+# Cloudflare Pages deployment
+pages_build_caching = true
+
+# KV namespaces para persistência de leads
+kv_namespaces = [
+  { binding = "LEADS_KV", id = "" }
+]
+
+# Variáveis de ambiente / secrets
+[env.production]
+kv_namespaces = [
+  { binding = "LEADS_KV", id = "" }
+]
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "./"
+watch_paths = ["src/**/*.ts", "src/**/*.tsx", "app/**/*.ts", "app/**/*.tsx"]
+
+[build.upload]
+format = "modules"
+main = "./node_modules/.bin/wrangler"
