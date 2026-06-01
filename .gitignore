@@ -10,3 +10,5 @@ dist/
 build/
 wrangler-account-id.json
 .cloudflare/
+wrangler.toml
+wrangler.json
