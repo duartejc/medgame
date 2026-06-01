@@ -54,7 +54,7 @@ body {
 }
 
 .av-header {
-  padding: 16px 18px 12px;
+  padding: 14px 18px 12px;
   flex-shrink: 0;
   background: linear-gradient(180deg, rgba(7,11,15,0.95), rgba(7,11,15,0.7));
   backdrop-filter: blur(10px);
@@ -77,16 +77,18 @@ body {
 /* ── Top bar ───────────────────────────────────────────────── */
 .av-topbar { display: flex; align-items: center; justify-content: space-between; }
 
-/* Logo SVG oficial — plantao-plus-dark.svg */
+/* Logo SVG oficial — plantao-plus-dark.svg
+   ViewBox 285.72 × 62.47; BY AVELIS ocupa ~9/62 do height.
+   A 52px total → BY AVELIS renderiza em ~7.5px (legível).
+   A 34px era apenas ~4.9px (ilegível). */
 .av-logo-svg {
-  height: 34px;
+  height: 52px;
   width: auto;
   display: block;
   flex-shrink: 0;
-  /* espaço de proteção: margem mínima = altura do "+" ≈ 6px */
-  margin: 2px 0;
   user-select: none;
   -webkit-user-drag: none;
+  image-rendering: auto;        /* deixa o browser usar antialiasing suave */
 }
 
 .av-clock {
