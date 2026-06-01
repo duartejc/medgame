@@ -7,9 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy:cf-pages": "npm run build && wrangler pages publish .next --project-name plantao-medgame --branch main",
-    "deploy:cf-workers": "wrangler deploy",
-    "logs": "wrangler pages deployment tail --project-name plantao-medgame"
+    "deploy": "git push origin main && echo 'Pages will auto-build on push. Check Dashboard for status.'"
   },
   "dependencies": {
     "next": "latest",

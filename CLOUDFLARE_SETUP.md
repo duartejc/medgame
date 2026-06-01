@@ -1,5 +1,7 @@
 # Setup Rápido — Cloudflare Pages
 
+⚠️ **Importante:** Não use `wrangler deploy` ou `wrangler cli` — use apenas **Dashboard ou Git**. Pages não é Workers.
+
 ## Em 5 passos você sobe a app
 
 ### 1️⃣ Prepare o repositório Git
