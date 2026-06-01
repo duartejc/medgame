@@ -34,7 +34,9 @@ npm run dev
 
 ## Deploy na Cloudflare Pages
 
-### Opção A: Git (recomendado)
+**Use a Opção A abaixo (Git).** A Opção B é legacy.
+
+### Opção A: Git (recomendado — deploy automático)
 
 1. **Faça push do seu código para GitHub:**
    ```bash
@@ -118,6 +120,17 @@ wrangler pages deployment tail \
 Ou via Dashboard: Pages > seu projeto > Deployments > últimas execuções
 
 ## Troubleshooting
+
+### "wrangler.toml configuration" — campos vazios ou inválidos
+Se receber erros como `account_id is empty` ou `Unexpected fields`:
+1. **Não use Wrangler CLI direto para Pages.** Use apenas Git + Dashboard.
+2. O `wrangler.toml` no repo é só para referência local. Dashboard sobrescreve tudo.
+3. Para testar localmente: `npm run dev` (não `wrangler`)
+4. Para deploy: `git push` → Pages constrói automaticamente.
+
+Se precisar usar `wrangler pages deploy` (CLI):
+- Primeiro, **crie o projeto no Dashboard** (Pages > Create project > GitHub)
+- Depois: `wrangler pages publish .next --project-name plantao-medgame`
 
 ### "Build failed"
 - Verifique se `npm run build` passa localmente

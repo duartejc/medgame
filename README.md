@@ -45,22 +45,22 @@ lib/deepseek.ts       Cliente OpenAI-compatible para DeepSeek
 
 ## Deploy
 
-Veja [DEPLOY.md](DEPLOY.md) para instruções completas.
+**Guias:**
+- **[CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)** ← **Comece por aqui!** (5 passos, super prático)
+- [DEPLOY.md](DEPLOY.md) — detalhado (todas as opções, troubleshooting)
 
 **TL;DR:**
 ```bash
 # Localmente
 npm install && npm run dev
 
-# Deploy na Cloudflare Pages (git + Dashboard)
+# Deploy na Cloudflare Pages (recomendado)
 git push origin main
-# Depois configure DEEPSEEK_API_KEY + KV binding no Dashboard
-
-# Ou CLI (imediato)
-npm run deploy:cf-pages
+# Dashboard: Pages > Create project > Connect Git > selecione repo
+# Settings > Env vars > DEEPSEEK_API_KEY (Secret) > Redeploy
 ```
 
-Apps em produção em `https://seu-projeto.pages.dev`.
+App estará em `https://seu-projeto.pages.dev` ✅
 
 ## Hardening antes de produção
 
