@@ -45,22 +45,24 @@ lib/deepseek.ts       Cliente OpenAI-compatible para DeepSeek
 
 ## Deploy
 
-**Guias:**
-- **[CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md)** ← **Comece por aqui!** (5 passos, super prático)
-- [DEPLOY.md](DEPLOY.md) — detalhado (todas as opções, troubleshooting)
+**Opções:**
+- **[VERCEL_DEPLOY.md](VERCEL_DEPLOY.md)** ← **RECOMENDADO!** (2 min, zero fricção)
+- [CLOUDFLARE_SETUP.md](CLOUDFLARE_SETUP.md) (5 min, mais config)
 
-**TL;DR:**
+### Vercel (Recomendado)
 ```bash
-# Localmente
-npm install && npm run dev
-
-# Deploy na Cloudflare Pages (recomendado)
 git push origin main
-# Dashboard: Pages > Create project > Connect Git > selecione repo
-# Settings > Env vars > DEEPSEEK_API_KEY (Secret) > Redeploy
+# Vá pra https://vercel.com/new > Import repo > Deploy
+# Settings > Env vars > DEEPSEEK_API_KEY > Redeploy
 ```
+App em `https://seu-projeto.vercel.app` ✅
 
-App estará em `https://seu-projeto.pages.dev` ✅
+### Cloudflare Pages
+```bash
+git push origin main
+# Dashboard Pages > Create > Connect Git > Deploy
+```
+App em `https://seu-projeto.pages.dev` ✅
 
 ## Hardening antes de produção
 
