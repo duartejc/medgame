@@ -229,6 +229,7 @@ body {
 
 /* "Como jogar" — fluxo visual das fases */
 .av-intro-howto {
+  margin-top: 24px;
   background: var(--glass);
   border: 1px solid var(--line);
   border-radius: 16px;
