@@ -10,6 +10,7 @@
     "deploy": "git push origin main && echo 'Pages will auto-build on push. Check Dashboard for status.'"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "next": "latest",
     "openai": "^6.39.1",
     "react": "latest",
