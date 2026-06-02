@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient, MODEL } from "@/lib/deepseek";
-import { getCase } from "@/lib/cases";
+import { getCase, Case } from "@/lib/cases";
 import { evaluate, outcomeLabel } from "@/lib/engine";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { caseId, hypothesisId, conductIds, examsOrdered, timeUsed } =
+    const { caseId, caseData, hypothesisId, conductIds, examsOrdered, timeUsed } =
       (await req.json()) as {
-        caseId: string;
+        caseId?: string;
+        caseData?: Case;
         hypothesisId: string | null;
         conductIds: string[];
         examsOrdered: string[];
         timeUsed: number;
       };
 
-    const medCase = getCase(caseId);
+    const medCase = caseData ?? (caseId ? getCase(caseId) : undefined);
     if (!medCase) return NextResponse.json({ error: "Caso não encontrado" }, { status: 404 });
 
     // 1) Desfecho clínico calculado de forma determinística (justo e auditável).
