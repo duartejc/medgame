@@ -13,6 +13,14 @@ export type Vitals = {
   glicemia?: number;
 };
 
+// Pergunta do médico na fase de anamnese, com resposta fallback do keyHistory
+export type CaseQuestion = {
+  id: string;
+  ask: string; // texto exibido ao jogador (pergunta do médico)
+  tag: string; // rótulo curto para a bolha de chat
+  flag?: boolean; // highlight visual (achado relevante)
+};
+
 export type Exam = {
   id: string;
   label: string;
@@ -50,6 +58,7 @@ export type Case = {
     diagnosis: string;
     keyHistory: string[]; // fatos revelados quando o jogador pergunta
   };
+  questions?: CaseQuestion[]; // perguntas do médico (opcional; geradas pela IA ou escritas)
   exams: Exam[];
   hypotheses: Hypothesis[];
   correctHypothesisId: string;
@@ -91,6 +100,15 @@ export const CASES: Case[] = [
         "Nega febre, tosse, trauma ou dor que piora ao respirar/apalpar.",
       ],
     },
+    questions: [
+      { id: "q1", ask: "Como é a dor? Para onde ela irradia?", tag: "Dor", flag: true },
+      { id: "q2", ask: "Quando começou? O que estava fazendo?", tag: "Início", flag: true },
+      { id: "q3", ask: "Tem suor frio, enjoo ou falta de ar junto?", tag: "Associados" },
+      { id: "q4", ask: "Tomou algum remédio? Melhorou algo?", tag: "Medicação" },
+      { id: "q5", ask: "Tem pressão alta ou outras doenças crônicas?", tag: "Antecedentes" },
+      { id: "q6", ask: "Alguém da família teve problema no coração?", tag: "Família", flag: true },
+      { id: "q7", ask: "Tem febre, tosse ou a dor piora ao respirar?", tag: "Diferencial" },
+    ],
     exams: [
       {
         id: "ecg",
@@ -190,6 +208,13 @@ export const CASES: Case[] = [
         "Sem febre. Aperto no peito e chiado intenso. Sem catarro.",
       ],
     },
+    questions: [
+      { id: "q1", ask: "Há quanto tempo começou a falta de ar?", tag: "Início" },
+      { id: "q2", ask: "Você tem asma? Já teve crises antes?", tag: "Antecedentes", flag: true },
+      { id: "q3", ask: "Usou a bombinha hoje? Quantas vezes?", tag: "Medicação", flag: true },
+      { id: "q4", ask: "Consegue completar frases sem parar pra respirar?", tag: "Esforço", flag: true },
+      { id: "q5", ask: "Tem febre, dor no peito ou catarro?", tag: "Sintomas" },
+    ],
     exams: [
       {
         id: "ausc",

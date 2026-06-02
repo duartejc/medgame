@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient, MODEL } from "@/lib/deepseek";
-import { getCase } from "@/lib/cases";
+import { getCase, Case } from "@/lib/cases";
 
 export const runtime = "nodejs";
 
@@ -8,13 +8,14 @@ type Turn = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: NextRequest) {
   try {
-    const { caseId, history, message } = (await req.json()) as {
-      caseId: string;
+    const { caseId, caseData, history, message } = (await req.json()) as {
+      caseId?: string;
+      caseData?: Case;
       history: Turn[];
       message: string;
     };
 
-    const medCase = getCase(caseId);
+    const medCase = caseData ?? (caseId ? getCase(caseId) : undefined);
     if (!medCase) return NextResponse.json({ error: "Caso não encontrado" }, { status: 404 });
 
     const systemPrompt =

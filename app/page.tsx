@@ -1,56 +1,144 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { CASES, FEATURED_CASE_ID } from "@/lib/cases";
+import { CASES, FEATURED_CASE_ID, Case, Vitals, Exam } from "@/lib/cases";
 
 // ── Tipos ──────────────────────────────────────────────────────
-type Phase = 0 | 1 | 2 | 3 | 4 | 5; // intro|anamnese|exames|conduta|resultado|lead
+type Phase = 0 | 1 | 2 | 3 | 4 | 5;
 type ChatMsg = { side: "doctor" | "patient"; text: string; tag?: string; key: string };
 
-// ── Caso ───────────────────────────────────────────────────────
-const medCase = CASES.find((c) => c.id === FEATURED_CASE_ID) ?? CASES[0];
+type VitalUI = {
+  id: string;
+  label: string;
+  value: string;
+  unit: string;
+  state: "crit" | "warn" | "ok";
+  note: string;
+};
 
-// Dados de UI do caso (asthma — do design, com fallbacks scriptados)
-const QUESTIONS = [
-  { id: "q1", ask: "Há quanto tempo começou a falta de ar?", fallback: "Começou há umas 4 horas, depois que limpei a casa cheia de poeira. Foi piorando o tempo todo.", tag: "Início" },
-  { id: "q2", ask: "Você tem asma? Já teve crises antes?", fallback: "Tenho asma desde criança. Já internei uma vez na UTI quando era adolescente.", tag: "Antecedentes", flag: true },
-  { id: "q3", ask: "Usou a bombinha hoje? Quantas vezes?", fallback: "Usei o salbutamol umas 6 ou 7 vezes... mas não tá adiantando quase nada.", tag: "Medicação", flag: true },
-  { id: "q4", ask: "Consegue completar frases sem parar pra respirar?", fallback: "(a irmã responde) Ela tá falando só palavras soltas, doutor. Tá muito cansada.", tag: "Esforço", flag: true },
-  { id: "q5", ask: "Tem febre, dor no peito ou catarro?", fallback: "Febre não. Sinto aperto no peito e o chiado, mas catarro nenhum.", tag: "Sintomas" },
-];
+type QuestionType = {
+  id: string;
+  ask: string;
+  fallback: string;
+  tag: string;
+  flag?: boolean;
+};
 
-const VITALS_UI = [
-  { id: "spo2", label: "SpO₂", value: "88", unit: "%", state: "crit", note: "ar ambiente" },
-  { id: "fr", label: "FR", value: "32", unit: "irpm", state: "crit", note: "taquipneia" },
-  { id: "fc", label: "FC", value: "124", unit: "bpm", state: "warn", note: "taquicardia" },
-  { id: "pa", label: "PA", value: "138/86", unit: "mmHg", state: "warn", note: "" },
-  { id: "tax", label: "Tax", value: "36.7", unit: "°C", state: "ok", note: "afebril" },
-  { id: "pfe", label: "PFE", value: "140", unit: "L/min", state: "crit", note: "~35% previsto" },
-];
+type JudgeResult = {
+  result: {
+    state: "recuperado" | "estavel" | "complicacao" | "obito";
+    score: number;
+    correctDiagnosis: boolean;
+    criticalDone: boolean;
+    chosenCorrect: string[];
+    chosenHarmful: string[];
+    missedCritical: string[];
+    timeUsed: number;
+    overTime: boolean;
+  };
+  debrief: {
+    headline: string;
+    acertos: string[];
+    ajustes: string[];
+    ensino: string;
+    gancho: string;
+  };
+};
 
-const EXAM_ICONS: Record<string, string> = { ausc: "lung", gaso: "drop", rx: "xray", ecg: "heart" };
-
-const OUTCOMES = {
-  recuperado: { key: "recuperado", label: "Recuperada", hue: "emerald", score: 920, title: "Marina respondeu ao tratamento", summary: "Com O₂, broncodilatadores contínuos e corticoide precoce, a SpO₂ subiu para 96% e a paciente voltou a falar frases completas. Internada em enfermaria para observação.", stats: [{ k: "SpO₂ final", v: "96%" }, { k: "Tempo até conduta", v: "6 min" }, { k: "Decisões corretas", v: "4/4" }], verdict: "Conduta exemplar para asma quase fatal." },
-  estavel: { key: "estavel", label: "Estável", hue: "blue", score: 740, title: "Marina estabilizou, com ressalvas", summary: "A paciente melhorou parcialmente. A demora em iniciar o corticoide prolongou a crise. Mantida em observação prolongada na sala vermelha.", stats: [{ k: "SpO₂ final", v: "93%" }, { k: "Tempo até conduta", v: "12 min" }, { k: "Decisões corretas", v: "2/4" }], verdict: "No caminho certo — agilidade salva minutos preciosos." },
-  observacao: { key: "observacao", label: "Em observação", hue: "amber", score: 520, title: "Resposta lenta — risco mantido", summary: "Sem corticoide e com oxigenação tardia, a fadiga respiratória progrediu. Equipe de UTI acionada para vigilância de via aérea.", stats: [{ k: "SpO₂ final", v: "90%" }, { k: "Tempo até conduta", v: "18 min" }, { k: "Decisões corretas", v: "1/4" }], verdict: "Reavalie: broncodilatador + corticoide são pilares." },
-  critico: { key: "critico", label: "Crítico", hue: "red", score: 280, title: "Falência respiratória iminente", summary: "Condutas inadequadas (sedação / antibiótico isolado) atrasaram o tratamento. Paciente evoluiu para necessidade de via aérea avançada.", stats: [{ k: "SpO₂ final", v: "84%" }, { k: "Tempo até conduta", v: "—" }, { k: "Decisões corretas", v: "0/4" }], verdict: "Sedar uma asma grave sem suporte de via aérea pode ser fatal." },
+const STATE_DISPLAY: Record<string, { label: string; hue: string }> = {
+  recuperado: { label: "Recuperado", hue: "emerald" },
+  estavel: { label: "Estável", hue: "blue" },
+  complicacao: { label: "Complicação evitável", hue: "amber" },
+  obito: { label: "Óbito", hue: "red" },
 };
 
 const PHASES_NAV = ["Intro", "Anamnese", "Exames", "Conduta", "Resultado"];
-const MIN_QUESTIONS = 3;
 
-function computeOutcome(conductIds: string[]): keyof typeof OUTCOMES {
-  const has = (id: string) => conductIds.includes(id);
-  if (has("sed")) return "critico";
-  const idealHits = ["o2", "b2", "cort"].filter(has).length;
-  if (idealHits === 3 && !has("atb")) return "recuperado";
-  if (idealHits >= 2) return "estavel";
-  return "observacao";
+// ── Helpers derivados do caso ───────────────────────────────────
+
+function vitalsFromCase(v: Vitals): VitalUI[] {
+  const items: VitalUI[] = [];
+
+  items.push({
+    id: "spo2", label: "SpO₂", value: String(v.sat), unit: "%",
+    state: v.sat < 90 ? "crit" : v.sat < 94 ? "warn" : "ok",
+    note: v.sat < 90 ? "hipoxemia grave" : v.sat < 94 ? "hipoxemia" : "",
+  });
+  items.push({
+    id: "fr", label: "FR", value: String(v.fr), unit: "irpm",
+    state: v.fr > 30 ? "crit" : v.fr > 24 ? "warn" : "ok",
+    note: v.fr > 30 ? "taquipneia grave" : v.fr > 24 ? "taquipneia" : "",
+  });
+  items.push({
+    id: "fc", label: "FC", value: String(v.fc), unit: "bpm",
+    state: v.fc > 120 ? "crit" : v.fc > 100 ? "warn" : "ok",
+    note: v.fc > 120 ? "taquicardia" : v.fc > 100 ? "taquicardia leve" : "",
+  });
+
+  const sys = parseInt(v.pa.split("/")[0]);
+  items.push({
+    id: "pa", label: "PA", value: v.pa, unit: "mmHg",
+    state: sys < 90 ? "crit" : sys > 160 || sys < 100 ? "warn" : "ok",
+    note: sys < 90 ? "hipotensão" : sys > 160 ? "hipertensão" : "",
+  });
+  items.push({
+    id: "tax", label: "Tax", value: String(v.temp), unit: "°C",
+    state: v.temp > 38.5 ? "warn" : v.temp < 36 ? "warn" : "ok",
+    note: v.temp > 38.5 ? "febre" : v.temp < 36 ? "hipotermia" : "afebril",
+  });
+
+  if (v.glicemia !== undefined) {
+    items.push({
+      id: "hgt", label: "HGT", value: String(v.glicemia), unit: "mg/dL",
+      state: v.glicemia < 70 || v.glicemia > 250 ? "crit" : v.glicemia > 180 ? "warn" : "ok",
+      note: v.glicemia < 70 ? "hipoglicemia" : v.glicemia > 250 ? "hiperglicemia grave" : "",
+    });
+  }
+
+  return items;
+}
+
+function alertFromVitals(v: Vitals): string | null {
+  const alerts: string[] = [];
+  if (v.sat < 92) alerts.push(`SpO₂ ${v.sat}%`);
+  if (v.fr > 28) alerts.push(`FR ${v.fr} irpm`);
+  if (v.fc > 115) alerts.push(`FC ${v.fc} bpm`);
+  const sys = parseInt(v.pa.split("/")[0]);
+  if (sys < 90) alerts.push(`PA ${v.pa} (hipotensão)`);
+  if (v.glicemia !== undefined && v.glicemia < 70) alerts.push(`HGT ${v.glicemia} mg/dL`);
+  if (alerts.length === 0) return null;
+  return `${alerts.join(", ")} — avalie criticamente.`;
+}
+
+function questionsFromCase(c: Case): QuestionType[] {
+  const qs = c.questions || [];
+  return qs.map((q, i) => ({
+    id: q.id,
+    ask: q.ask,
+    fallback: c.truth.keyHistory[i] ?? c.truth.keyHistory[c.truth.keyHistory.length - 1],
+    tag: q.tag,
+    flag: q.flag,
+  }));
+}
+
+function examIcon(exam: Exam): string {
+  const MAP: Record<string, string> = {
+    ecg: "heart", echo: "heart",
+    rx: "xray", tc: "xray", rm: "xray",
+    ausc: "lung", ex_resp: "lung",
+    gaso: "drop",
+  };
+  if (MAP[exam.id]) return MAP[exam.id];
+  const CAT: Record<Exam["category"], string> = {
+    exame_fisico: "lung", laboratorio: "drop", imagem: "xray", beira_leito: "pulse",
+  };
+  return CAT[exam.category] ?? "pulse";
 }
 
 // ── Ícones SVG inline ──────────────────────────────────────────
-function Icon({ name, size = 20, color = "currentColor", stroke = 2 }: { name: string; size?: number; color?: string; stroke?: number }) {
+function Icon({ name, size = 20, color = "currentColor", stroke = 2 }: {
+  name: string; size?: number; color?: string; stroke?: number;
+}) {
   const p = { fill: "none" as const, stroke: color, strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const paths: Record<string, React.ReactNode> = {
     lung: <g {...p}><path d="M12 4v8"/><path d="M12 8c0-1.5-1-2.5-2.5-2.5S7 7 7 9c0 3-2 4-2 7 0 1.5 1 2.5 2.5 2.5S10 17 10 14"/><path d="M12 8c0-1.5 1-2.5 2.5-2.5S17 7 17 9c0 3 2 4 2 7 0 1.5-1 2.5-2.5 2.5S14 17 14 14"/></g>,
@@ -66,6 +154,8 @@ function Icon({ name, size = 20, color = "currentColor", stroke = 2 }: { name: s
     chevR: <g {...p}><path d="m9 18 6-6-6-6"/></g>,
     spark: <g {...p}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" strokeWidth={1.6}/></g>,
     share: <g {...p}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></g>,
+    dice: <g {...p}><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1" fill={color} stroke="none"/><circle cx="15.5" cy="8.5" r="1" fill={color} stroke="none"/><circle cx="8.5" cy="15.5" r="1" fill={color} stroke="none"/><circle cx="15.5" cy="15.5" r="1" fill={color} stroke="none"/><circle cx="12" cy="12" r="1" fill={color} stroke="none"/></g>,
+    spin: <g {...p}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></g>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block", flexShrink: 0 }}>
@@ -74,24 +164,17 @@ function Icon({ name, size = 20, color = "currentColor", stroke = 2 }: { name: s
   );
 }
 
-// ── Logo — lockup oficial Avelis Plantão+ ──────────────────────
-// Usa plantao-plus-dark.svg (fundo escuro): PLANTÃO em #EDF1F5,
-// "+" em coral #FF6C8A, "by Avelis" com wordmark vetorial.
+// ── Logo ───────────────────────────────────────────────────────
 function Logo() {
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/assets/plantao-plus-dark.svg"
-      alt="Plantão+ by Avelis"
-      className="av-logo-svg"
-      draggable={false}
-    />
+    <img src="/assets/plantao-plus-dark.svg" alt="Plantão+ by Avelis" className="av-logo-svg" draggable={false} />
   );
 }
 
 // ── Phase nav ──────────────────────────────────────────────────
 function PhaseNav({ current }: { current: number }) {
-  const cap = Math.min(current, 4); // lead (5) não tem fase no nav
+  const cap = Math.min(current, 4);
   return (
     <div className="av-phasenav">
       {PHASES_NAV.map((label, i) => {
@@ -100,14 +183,10 @@ function PhaseNav({ current }: { current: number }) {
         return (
           <span key={label} style={{ display: "contents" }}>
             <div className={`av-pill${active ? " is-active" : ""}${done ? " is-done" : ""}`}>
-              {done
-                ? <Icon name="check" size={11} stroke={2.6} />
-                : <span className="av-pill-dot" />}
+              {done ? <Icon name="check" size={11} stroke={2.6} /> : <span className="av-pill-dot" />}
               <span>{label}</span>
             </div>
-            {i < PHASES_NAV.length - 1 && (
-              <span className={`av-pill-sep${done ? " is-done" : ""}`} />
-            )}
+            {i < PHASES_NAV.length - 1 && <span className={`av-pill-sep${done ? " is-done" : ""}`} />}
           </span>
         );
       })}
@@ -142,7 +221,9 @@ function XPMeter({ xp, streak }: { xp: number; streak: number }) {
 }
 
 // ── Glass card ─────────────────────────────────────────────────
-function Glass({ children, className = "", style = {}, accent }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; accent?: string }) {
+function Glass({ children, className = "", style = {}, accent }: {
+  children: React.ReactNode; className?: string; style?: React.CSSProperties; accent?: string;
+}) {
   return (
     <div className={`av-glass ${className}`} style={style}>
       {accent && <span className="av-glass-accent" style={{ background: accent }} />}
@@ -161,7 +242,10 @@ function Avatar({ initials, size = 46 }: { initials: string; size?: number }) {
 }
 
 // ── Button ─────────────────────────────────────────────────────
-function Btn({ children, onClick, variant = "primary", disabled, full, icon }: { children: React.ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost"; disabled?: boolean; full?: boolean; icon?: string; }) {
+function Btn({ children, onClick, variant = "primary", disabled, full, icon }: {
+  children: React.ReactNode; onClick?: () => void; variant?: "primary" | "secondary" | "ghost";
+  disabled?: boolean; full?: boolean; icon?: string;
+}) {
   return (
     <button
       className={`av-btn av-btn-${variant}${full ? " is-full" : ""}${disabled ? " is-disabled" : ""}`}
@@ -174,14 +258,12 @@ function Btn({ children, onClick, variant = "primary", disabled, full, icon }: {
 }
 
 // ── Vital chip ─────────────────────────────────────────────────
-function VitalChip({ v, revealed }: { v: typeof VITALS_UI[number]; revealed: boolean }) {
+function VitalChip({ v, revealed }: { v: VitalUI; revealed: boolean }) {
   return (
     <div className={`av-vital state-${v.state}${revealed ? " is-on" : ""}`}>
       <div className="av-vital-top">
         <span className="av-vital-label">{v.label}</span>
-        {v.state !== "ok" && (
-          <span className="av-vital-flag"><Icon name="alert" size={11} stroke={2.4} /></span>
-        )}
+        {v.state !== "ok" && <span className="av-vital-flag"><Icon name="alert" size={11} stroke={2.4} /></span>}
       </div>
       <div className="av-vital-value">
         {revealed ? v.value : "——"}
@@ -196,20 +278,31 @@ function VitalChip({ v, revealed }: { v: typeof VITALS_UI[number]; revealed: boo
 function Typing() {
   return (
     <div className="av-msg-row patient">
-      <div className="av-msg patient av-typing-bubble">
-        <span /><span /><span />
-      </div>
+      <div className="av-msg patient av-typing-bubble"><span /><span /><span /></div>
     </div>
   );
 }
 
 // ── Tela 0: Intro ──────────────────────────────────────────────
-function IntroScreen({ onStart }: { onStart: () => void }) {
+function IntroScreen({
+  medCase,
+  onStart,
+  onGenerate,
+  isGenerating,
+  generateError,
+}: {
+  medCase: Case;
+  onStart: () => void;
+  onGenerate: () => void;
+  isGenerating: boolean;
+  generateError: string;
+}) {
   const p = medCase.patient;
   const initials = p.name.replace(/^(Sr|Sra|Dr|Dra)\.?\s+/i, "").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const isGenerated = medCase.id.startsWith("gen-");
+
   return (
     <div className="av-screen">
-      {/* Headline: deixar claro que é um jogo */}
       <div className="av-intro-header av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 20 }}>🎮</span>
@@ -219,20 +312,18 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
           </div>
         </div>
         <div className="av-gamification-badges">
+          <div className="av-badge-item"><span className="av-badge-icon">⭐</span> 0–100 XP</div>
+          <div className="av-badge-item"><span className="av-badge-icon">🔥</span> Streak</div>
           <div className="av-badge-item">
-            <span className="av-badge-icon">⭐</span> 0–100 XP
-          </div>
-          <div className="av-badge-item">
-            <span className="av-badge-icon">🔥</span> Streak
-          </div>
-          <div className="av-badge-item">
-            <span className="av-badge-icon">⚠️</span> Difícil
+            <span className="av-badge-icon">⚠️</span>
+            {medCase.difficulty === "difícil" ? "Difícil" : medCase.difficulty === "média" ? "Média" : "Fácil"}
           </div>
         </div>
       </div>
 
       <div className="av-eyebrow av-stagger" style={{ "--d": "60ms" } as React.CSSProperties}>
-        <span className="av-dot-live" /> Caso ao vivo · Sala Vermelha
+        <span className="av-dot-live" />
+        {isGenerated ? "Caso gerado por IA · Sala de Emergência" : "Caso ao vivo · Sala Vermelha"}
       </div>
 
       <Glass className="av-stagger av-patient-card" style={{ "--d": "120ms" } as React.CSSProperties} accent="linear-gradient(180deg,var(--blue),var(--emerald))">
@@ -240,7 +331,7 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
           <Avatar initials={initials} size={54} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="av-patient-name">{p.name}</div>
-            <div className="av-patient-meta">{p.age} anos · {p.sex} · chegou a pé, acompanhada</div>
+            <div className="av-patient-meta">{p.age} anos · {p.sex} · {medCase.specialty}</div>
           </div>
           <div className="av-triage">Vermelho</div>
         </div>
@@ -251,32 +342,21 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
         <p className="av-context">{medCase.scene}</p>
       </Glass>
 
-      {/* Como jogar — visual do fluxo de fases */}
       <div className="av-stagger" style={{ "--d": "180ms" } as React.CSSProperties}>
         <div className="av-intro-howto">
           <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cloud-dim)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Seu fluxo neste plantão
           </div>
           <div className="av-phase-flow">
-            <div className="av-phase-step">
-              <div className="av-phase-circle">1</div>
-              <div className="av-phase-label">Anamnese</div>
-            </div>
-            <div className="av-phase-arrow">→</div>
-            <div className="av-phase-step">
-              <div className="av-phase-circle">2</div>
-              <div className="av-phase-label">Exames</div>
-            </div>
-            <div className="av-phase-arrow">→</div>
-            <div className="av-phase-step">
-              <div className="av-phase-circle">3</div>
-              <div className="av-phase-label">Conduta</div>
-            </div>
-            <div className="av-phase-arrow">→</div>
-            <div className="av-phase-step">
-              <div className="av-phase-circle">4</div>
-              <div className="av-phase-label">Resultado</div>
-            </div>
+            {["Anamnese", "Exames", "Conduta", "Resultado"].map((l, i, arr) => (
+              <span key={l} style={{ display: "contents" }}>
+                <div className="av-phase-step">
+                  <div className="av-phase-circle">{i + 1}</div>
+                  <div className="av-phase-label">{l}</div>
+                </div>
+                {i < arr.length - 1 && <div className="av-phase-arrow">→</div>}
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -286,20 +366,40 @@ function IntroScreen({ onStart }: { onStart: () => void }) {
           <Icon name="spark" size={18} color="var(--amber)" stroke={1.8} />
           <div>
             <strong>Sua missão</strong>
-            <span>Avalie, investigue e estabilize a paciente. Cada minuto conta. A IA vai analisar suas decisões ao final.</span>
+            <span>Avalie, investigue e estabilize o paciente. A IA vai analisar suas decisões ao final.</span>
           </div>
         </Glass>
       </div>
 
-      <div className="av-stagger av-cta-fixed" style={{ "--d": "320ms" } as React.CSSProperties}>
-        <Btn variant="primary" full icon="chevR" onClick={onStart}>Iniciar atendimento</Btn>
+      {generateError && (
+        <div className="av-error av-fade-in" style={{ margin: "12px 0" }}>{generateError}</div>
+      )}
+
+      <div className="av-stagger av-cta-fixed" style={{ "--d": "320ms", display: "flex", flexDirection: "column", gap: 10 } as React.CSSProperties}>
+        <Btn variant="primary" full icon="chevR" onClick={onStart} disabled={isGenerating}>
+          Iniciar atendimento
+        </Btn>
+        <Btn variant="secondary" full icon={isGenerating ? "spin" : "dice"} onClick={onGenerate} disabled={isGenerating}>
+          {isGenerating ? "Gerando caso com IA…" : "🎲 Gerar caso aleatório"}
+        </Btn>
       </div>
     </div>
   );
 }
 
 // ── Tela 1: Anamnese ───────────────────────────────────────────
-function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: number) => void }) {
+function AnamneseScreen({
+  medCase,
+  onAdvance,
+  onXP,
+}: {
+  medCase: Case;
+  onAdvance: () => void;
+  onXP: (n: number) => void;
+}) {
+  const questions = questionsFromCase(medCase);
+  const MIN_QUESTIONS = Math.min(3, questions.length);
+
   const [thread, setThread] = useState<ChatMsg[]>([]);
   const [asked, setAsked] = useState<string[]>([]);
   const [typing, setTyping] = useState(false);
@@ -310,7 +410,7 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [thread, typing]);
 
-  const ask = useCallback(async (q: typeof QUESTIONS[number]) => {
+  const ask = useCallback(async (q: QuestionType) => {
     if (asked.includes(q.id) || typing) return;
     setAsked((a) => [...a, q.id]);
     setThread((t) => [...t, { side: "doctor", text: q.ask, key: q.id + "d" }]);
@@ -323,7 +423,7 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          caseId: medCase.id,
+          caseData: medCase,
           history: thread.map((m) => ({ role: m.side === "doctor" ? "user" : "assistant", content: m.text })),
           message: q.ask,
         }),
@@ -331,7 +431,7 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
       const data = await res.json();
       if (data.reply) reply = data.reply;
     } catch {
-      // fallback to scripted response
+      // usa fallback
     }
 
     setTimeout(() => {
@@ -339,22 +439,24 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
       setThread((t) => [...t, { side: "patient", text: reply, tag: q.tag, key: q.id + "p" }]);
       onXP(20);
     }, 1100);
-  }, [asked, typing, thread, onXP]);
+  }, [asked, typing, thread, onXP, medCase]);
 
-  const remaining = QUESTIONS.filter((q) => !asked.includes(q.id));
+  const remaining = questions.filter((q) => !asked.includes(q.id));
   const canAdvance = asked.length >= MIN_QUESTIONS;
 
   return (
     <div className="av-screen">
       <div className="av-section-title av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>
         Anamnese
-        <span className="av-counter">{asked.length}/{QUESTIONS.length}</span>
+        <span className="av-counter">{asked.length}/{questions.length}</span>
       </div>
 
       <Glass className="av-chat-card av-stagger" style={{ "--d": "90ms" } as React.CSSProperties}>
         <div className="av-chat-scroll" ref={scrollRef}>
           {thread.length === 0 && (
-            <div className="av-chat-empty">A paciente está dispneica. Conduza a anamnese — escolha o que perguntar.</div>
+            <div className="av-chat-empty">
+              O paciente aguarda. Conduza a anamnese — escolha o que perguntar.
+            </div>
           )}
           {thread.map((m) => (
             <div key={m.key} className={`av-msg-row ${m.side}`}>
@@ -378,9 +480,7 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
             <Icon name="send" size={14} color="var(--blue-bright)" stroke={2.2} />
           </button>
         ))}
-        {remaining.length === 0 && (
-          <div className="av-allasked">Anamnese completa ✓</div>
-        )}
+        {remaining.length === 0 && <div className="av-allasked">Anamnese completa ✓</div>}
       </div>
 
       <div className="av-cta-fixed">
@@ -398,7 +498,18 @@ function AnamneseScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: 
 }
 
 // ── Tela 2: Exames ─────────────────────────────────────────────
-function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: number) => void }) {
+function ExamesScreen({
+  medCase,
+  onAdvance,
+  onXP,
+}: {
+  medCase: Case;
+  onAdvance: (examsOrdered: string[]) => void;
+  onXP: (n: number) => void;
+}) {
+  const vitalsUI = vitalsFromCase(medCase.vitals);
+  const alertText = alertFromVitals(medCase.vitals);
+
   const [vitalsOn, setVitalsOn] = useState(false);
   const [ordered, setOrdered] = useState<string[]>([]);
 
@@ -418,9 +529,7 @@ function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: nu
 
       <div className="av-stagger" style={{ "--d": "70ms" } as React.CSSProperties}>
         <div className="av-vitals-grid">
-          {VITALS_UI.map((v) => (
-            <VitalChip key={v.id} v={v} revealed={vitalsOn} />
-          ))}
+          {vitalsUI.map((v) => <VitalChip key={v.id} v={v} revealed={vitalsOn} />)}
         </div>
       </div>
 
@@ -432,10 +541,10 @@ function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: nu
         </div>
       )}
 
-      {vitalsOn && (
+      {vitalsOn && alertText && (
         <div className="av-alertline av-fade-in">
           <Icon name="alert" size={14} color="var(--amber)" stroke={2.4} />
-          SpO₂ 88% e PFE 35% — crise grave. Investigue e trate.
+          {alertText}
         </div>
       )}
 
@@ -444,22 +553,19 @@ function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: nu
       <div className="av-exam-list">
         {medCase.exams.map((ex, i) => {
           const on = ordered.includes(ex.id);
-          const iconName = EXAM_ICONS[ex.id] ?? "heart";
           const stateClass = ex.redFlag ? "state-crit" : "state-ok";
           return (
             <Glass key={ex.id} className={`av-exam av-stagger${on ? " is-on" : ""}`} style={{ "--d": `${200 + i * 80}ms`, padding: 0 } as React.CSSProperties}>
               <button className="av-exam-head" onClick={() => order(ex.id)} disabled={on}>
                 <span className={`av-exam-icon ${stateClass}`}>
-                  <Icon name={iconName} size={18} stroke={1.9} />
+                  <Icon name={examIcon(ex)} size={18} stroke={1.9} />
                 </span>
                 <span className="av-exam-name">{ex.label}</span>
                 {on
                   ? <span className="av-exam-done"><Icon name="check" size={13} stroke={2.6} /></span>
                   : <span className="av-exam-cta">Solicitar</span>}
               </button>
-              {on && (
-                <div className="av-exam-result av-fade-in">{ex.result}</div>
-              )}
+              {on && <div className="av-exam-result av-fade-in">{ex.result}</div>}
             </Glass>
           );
         })}
@@ -470,13 +576,9 @@ function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: nu
           variant={canAdvance ? "primary" : "ghost"}
           full icon="chevR"
           disabled={!canAdvance}
-          onClick={onAdvance}
+          onClick={() => onAdvance(ordered)}
         >
-          {canAdvance
-            ? "Definir conduta"
-            : !vitalsOn
-            ? "Afira os sinais vitais"
-            : "Solicite ao menos 2 exames"}
+          {canAdvance ? "Definir conduta" : !vitalsOn ? "Afira os sinais vitais" : "Solicite ao menos 2 exames"}
         </Btn>
       </div>
     </div>
@@ -484,16 +586,60 @@ function ExamesScreen({ onAdvance, onXP }: { onAdvance: () => void; onXP: (n: nu
 }
 
 // ── Tela 3: Conduta ────────────────────────────────────────────
-function CondutaScreen({ onConfirm, onXP }: { onConfirm: (sel: string[]) => void; onXP: (n: number) => void }) {
+function CondutaScreen({
+  medCase,
+  onConfirm,
+  onXP,
+}: {
+  medCase: Case;
+  onConfirm: (hypothesisId: string | null, conductIds: string[]) => void;
+  onXP: (n: number) => void;
+}) {
+  const [hypothesis, setHypothesis] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
+
   const toggle = (id: string) =>
     setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
 
+  const canConfirm = hypothesis !== null && sel.length > 0;
+
   return (
     <div className="av-screen">
-      <div className="av-section-title av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>Conduta</div>
-      <p className="av-prompt av-stagger" style={{ "--d": "70ms" } as React.CSSProperties}>
-        {medCase.conducts.length > 0 && "Asma quase fatal. Monte a conduta inicial — selecione o que fazer agora."}
+      {/* Hipótese diagnóstica */}
+      <div className="av-section-title av-stagger" style={{ "--d": "0ms" } as React.CSSProperties}>
+        Hipótese diagnóstica
+      </div>
+      <p className="av-prompt av-stagger" style={{ "--d": "50ms" } as React.CSSProperties}>
+        Qual é o seu diagnóstico principal?
+      </p>
+
+      <div className="av-conduta-list" style={{ marginBottom: 8 }}>
+        {medCase.hypotheses.map((h, i) => {
+          const on = hypothesis === h.id;
+          return (
+            <button
+              key={h.id}
+              className={`av-conduta av-stagger${on ? " is-sel" : ""}`}
+              style={{ "--d": `${80 + i * 50}ms` } as React.CSSProperties}
+              onClick={() => setHypothesis(h.id)}
+            >
+              <span className={`av-check${on ? " on" : ""}`}>
+                {on && <Icon name="check" size={13} stroke={3} />}
+              </span>
+              <span className="av-conduta-text">
+                <span className="av-conduta-label">{h.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Condutas */}
+      <div className="av-section-title av-stagger" style={{ "--d": "300ms", marginTop: 20 } as React.CSSProperties}>
+        Condutas
+      </div>
+      <p className="av-prompt av-stagger" style={{ "--d": "340ms" } as React.CSSProperties}>
+        Selecione as intervenções que você faria agora.
       </p>
 
       <div className="av-conduta-list">
@@ -503,7 +649,7 @@ function CondutaScreen({ onConfirm, onXP }: { onConfirm: (sel: string[]) => void
             <button
               key={c.id}
               className={`av-conduta av-stagger${on ? " is-sel" : ""}`}
-              style={{ "--d": `${130 + i * 70}ms` } as React.CSSProperties}
+              style={{ "--d": `${360 + i * 60}ms` } as React.CSSProperties}
               onClick={() => toggle(c.id)}
             >
               <span className={`av-check${on ? " on" : ""}`}>
@@ -522,12 +668,16 @@ function CondutaScreen({ onConfirm, onXP }: { onConfirm: (sel: string[]) => void
 
       <div className="av-cta-fixed">
         <Btn
-          variant={sel.length ? "primary" : "ghost"}
+          variant={canConfirm ? "primary" : "ghost"}
           full icon="chevR"
-          disabled={!sel.length}
-          onClick={() => { onXP(40); onConfirm(sel); }}
+          disabled={!canConfirm}
+          onClick={() => { onXP(40); onConfirm(hypothesis, sel); }}
         >
-          {sel.length ? `Confirmar conduta (${sel.length})` : "Selecione a conduta"}
+          {!hypothesis
+            ? "Selecione a hipótese diagnóstica"
+            : !sel.length
+            ? "Selecione ao menos 1 conduta"
+            : `Confirmar (${sel.length} conduta${sel.length > 1 ? "s" : ""})`}
         </Btn>
       </div>
     </div>
@@ -535,43 +685,102 @@ function CondutaScreen({ onConfirm, onXP }: { onConfirm: (sel: string[]) => void
 }
 
 // ── Tela 4: Resultado ──────────────────────────────────────────
-function ResultScreen({ outcomeKey, totalXP, onNext, conducts }: { outcomeKey: keyof typeof OUTCOMES; totalXP: number; onNext: () => void; conducts: string[]; }) {
-  const o = OUTCOMES[outcomeKey];
-  const [debrief, setDebrief] = useState<{ headline: string; acertos: string[]; ajustes: string[]; ensino: string; gancho: string } | null>(null);
-  const [loadingDebrief, setLoadingDebrief] = useState(true);
+function ResultScreen({
+  medCase,
+  hypothesisId,
+  selectedConducts,
+  examsOrdered,
+  timeUsed,
+  totalXP,
+  onNext,
+  onResult,
+}: {
+  medCase: Case;
+  hypothesisId: string | null;
+  selectedConducts: string[];
+  examsOrdered: string[];
+  timeUsed: number;
+  totalXP: number;
+  onNext: () => void;
+  onResult?: (state: string, score: number) => void;
+}) {
+  const [judgeData, setJudgeData] = useState<JudgeResult | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/judge", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        caseId: medCase.id,
-        hypothesisId: "asma_grave",
-        conductIds: conducts,
-        examsOrdered: [],
-        timeUsed: 0,
+        caseData: medCase,
+        hypothesisId,
+        conductIds: selectedConducts,
+        examsOrdered,
+        timeUsed,
       }),
     })
       .then((r) => r.json())
-      .then((d) => { if (d.debrief) setDebrief(d.debrief); })
+      .then((d) => {
+        if (d.result) {
+          setJudgeData(d);
+          onResult?.(d.result.state, d.result.score);
+        }
+      })
       .catch(() => {})
-      .finally(() => setLoadingDebrief(false));
-  }, [conducts]);
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="av-screen" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
+        <div style={{ textAlign: "center", color: "var(--cloud-dim)" }}>
+          <div className="av-spinner" style={{ margin: "0 auto 12px" }} />
+          <div style={{ fontSize: 14 }}>Calculando desfecho…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!judgeData) {
+    return (
+      <div className="av-screen">
+        <Glass style={{ textAlign: "center", padding: 24 }}>
+          <p style={{ color: "var(--cloud-dim)" }}>Não foi possível calcular o desfecho. Tente novamente.</p>
+          <div style={{ marginTop: 16 }}>
+            <Btn variant="primary" onClick={onNext}>Continuar</Btn>
+          </div>
+        </Glass>
+      </div>
+    );
+  }
+
+  const { result, debrief } = judgeData;
+  const display = STATE_DISPLAY[result.state] ?? STATE_DISPLAY.estavel;
+  const scoreDisplay = result.score * 10; // escala para 0-1000 pts de exibição
+
+  const stats = [
+    { k: "Score", v: `${result.score}/100` },
+    { k: "Diagnóstico", v: result.correctDiagnosis ? "Correto ✓" : "Incorreto ✗" },
+    { k: "Condutas críticas", v: result.criticalDone ? "Completas ✓" : "Faltaram ✗" },
+  ];
 
   return (
     <div className="av-screen av-result">
-      <div className={`av-outcome hue-${o.hue}`}>
+      <div className={`av-outcome hue-${display.hue}`}>
         <div className="av-outcome-glow" />
-        <div className="av-outcome-label">{o.label}</div>
-        <div className="av-outcome-score">{o.score}</div>
+        <div className="av-outcome-label">{display.label}</div>
+        <div className="av-outcome-score">{scoreDisplay}</div>
         <div className="av-outcome-scorelabel">pontos de desempenho</div>
-        <div className="av-outcome-title">{o.title}</div>
+        <div className="av-outcome-title">{medCase.patient.name} · {medCase.title}</div>
       </div>
 
       <Glass className="av-stagger" style={{ "--d": "120ms" } as React.CSSProperties}>
-        <p className="av-summary">{o.summary}</p>
+        <p className="av-summary">
+          {debrief?.headline || `Score ${result.score}/100 — ${display.label}.`}
+        </p>
         <div className="av-result-stats">
-          {o.stats.map((s) => (
+          {stats.map((s) => (
             <div key={s.k} className="av-rstat">
               <span className="av-rstat-v">{s.v}</span>
               <span className="av-rstat-k">{s.k}</span>
@@ -580,54 +789,49 @@ function ResultScreen({ outcomeKey, totalXP, onNext, conducts }: { outcomeKey: k
         </div>
       </Glass>
 
-      <div className={`av-verdict hue-${o.hue} av-stagger`} style={{ "--d": "200ms" } as React.CSSProperties}>
+      <div className={`av-verdict hue-${display.hue} av-stagger`} style={{ "--d": "200ms" } as React.CSSProperties}>
         <Icon name="spark" size={16} color="currentColor" stroke={1.9} />
-        <span>{o.verdict}</span>
+        <span>Diagnóstico correto: <strong>{medCase.truth.diagnosis}</strong></span>
       </div>
 
       {/* Debrief da IA */}
-      {(loadingDebrief || debrief) && (
+      {debrief && (
         <Glass className="av-stagger" style={{ "--d": "280ms" } as React.CSSProperties}>
           <div className="av-debrief-head">
             <span className="av-debrief-dot" />
             Debrief do seu <strong style={{ color: "var(--blue-bright)", marginLeft: 3 }}>Assistente Clínico</strong>
           </div>
-          {loadingDebrief ? (
-            <div style={{ fontSize: 13, color: "var(--cloud-faint)", display: "flex", gap: 8, alignItems: "center" }}>
-              <span className="av-spinner" /> Gerando análise…
-            </div>
-          ) : debrief ? (
+
+          {debrief.acertos?.length > 0 && (
             <>
-              {debrief.acertos?.length > 0 && (
-                <>
-                  <div className="av-debrief-section">O que você acertou</div>
-                  {debrief.acertos.map((a, i) => (
-                    <div key={i} className="av-debrief-item">
-                      <span className="av-debrief-item-icon" style={{ color: "var(--emerald)" }}>✅</span>
-                      <span>{a}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {debrief.ajustes?.length > 0 && (
-                <>
-                  <div className="av-debrief-section">O que ajustar</div>
-                  {debrief.ajustes.map((a, i) => (
-                    <div key={i} className="av-debrief-item">
-                      <span className="av-debrief-item-icon">⚠️</span>
-                      <span>{a}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {debrief.ensino && (
-                <>
-                  <div className="av-debrief-section">Ponto-chave</div>
-                  <p className="av-debrief-insight">{debrief.ensino}</p>
-                </>
-              )}
+              <div className="av-debrief-section">O que você acertou</div>
+              {debrief.acertos.map((a, i) => (
+                <div key={i} className="av-debrief-item">
+                  <span className="av-debrief-item-icon" style={{ color: "var(--emerald)" }}>✅</span>
+                  <span>{a}</span>
+                </div>
+              ))}
             </>
-          ) : null}
+          )}
+
+          {debrief.ajustes?.length > 0 && (
+            <>
+              <div className="av-debrief-section">O que ajustar</div>
+              {debrief.ajustes.map((a, i) => (
+                <div key={i} className="av-debrief-item">
+                  <span className="av-debrief-item-icon">⚠️</span>
+                  <span>{a}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {debrief.ensino && (
+            <>
+              <div className="av-debrief-section">Ponto-chave</div>
+              <p className="av-debrief-insight">{debrief.ensino}</p>
+            </>
+          )}
         </Glass>
       )}
 
@@ -636,7 +840,7 @@ function ResultScreen({ outcomeKey, totalXP, onNext, conducts }: { outcomeKey: k
         Você acumulou <strong style={{ marginLeft: 4, marginRight: 4 }}>{totalXP} XP</strong> neste plantão
       </div>
 
-      <div className="av-cta-fixed" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="av-cta-fixed">
         <Btn variant="primary" full onClick={onNext}>Salvar resultado e continuar →</Btn>
       </div>
     </div>
@@ -644,17 +848,34 @@ function ResultScreen({ outcomeKey, totalXP, onNext, conducts }: { outcomeKey: k
 }
 
 // ── Tela 5: Lead Capture ───────────────────────────────────────
-function LeadScreen({ xp, outcomeKey, onRestart }: { xp: number; outcomeKey: keyof typeof OUTCOMES; onRestart: () => void }) {
+function LeadScreen({
+  medCase,
+  xp,
+  judgeState,
+  judgeScore,
+  onRestart,
+  onGenerateNew,
+}: {
+  medCase: Case;
+  xp: number;
+  judgeState: string;
+  judgeScore: number;
+  onRestart: () => void;
+  onGenerateNew: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const o = OUTCOMES[outcomeKey];
+
+  const display = STATE_DISPLAY[judgeState] ?? STATE_DISPLAY.estavel;
+  const hueEmoji = { emerald: "🟢", blue: "🔵", amber: "🟡", red: "🔴" }[display.hue] ?? "⚪";
+  const scoreDisplay = judgeScore * 10;
 
   const shareText =
-    `🩺 PLANTÃO+ · Crise asmática grave\n` +
-    `${o.hue === "emerald" ? "🟢" : o.hue === "blue" ? "🔵" : o.hue === "amber" ? "🟡" : "🔴"} ${o.score} pontos · ${o.label}\n` +
+    `🩺 PLANTÃO+ · ${medCase.title}\n` +
+    `${hueEmoji} ${scoreDisplay} pontos · ${display.label}\n` +
     `⚡ ${xp} XP acumulados\n\n` +
     `Treine raciocínio clínico com IA 👉 plantao.avelis.com.br`;
 
@@ -663,7 +884,7 @@ function LeadScreen({ xp, outcomeKey, onRestart }: { xp: number; outcomeKey: key
     await fetch("/api/lead", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, role, specialty, lastScore: o.score, lastOutcome: outcomeKey, xp }),
+      body: JSON.stringify({ email, role, specialty, lastScore: scoreDisplay, lastOutcome: judgeState, xp }),
     }).catch(() => {});
     setBusy(false);
     setSaved(true);
@@ -681,14 +902,13 @@ function LeadScreen({ xp, outcomeKey, onRestart }: { xp: number; outcomeKey: key
             <strong style={{ color: "var(--blue-bright)" }}>Assistente Clínico com IA</strong>{" "}
             — o mesmo que apoia decisões no plantão real.
           </div>
-
           <div className="av-share-card">{shareText}</div>
-
           <div style={{ display: "flex", gap: 10, marginTop: 16, flexDirection: "column" }}>
             <Btn variant="secondary" full icon="share" onClick={() => navigator.clipboard?.writeText(shareText)}>
               Copiar resultado
             </Btn>
-            <Btn variant="primary" full onClick={onRestart}>Jogar outro caso</Btn>
+            <Btn variant="primary" full onClick={onGenerateNew}>🎲 Jogar novo caso com IA</Btn>
+            <Btn variant="ghost" full onClick={onRestart}>Repetir este caso</Btn>
           </div>
         </div>
       </div>
@@ -773,6 +993,8 @@ function FooterAvelis() {
 }
 
 // ── App principal ──────────────────────────────────────────────
+const FEATURED_CASE = CASES.find((c) => c.id === FEATURED_CASE_ID) ?? CASES[0];
+
 export default function Game() {
   const [phase, setPhase] = useState<Phase>(0);
   const [isExiting, setIsExiting] = useState(false);
@@ -781,7 +1003,14 @@ export default function Game() {
   const [streak, setStreak] = useState(0);
   const [xpPopup, setXpPopup] = useState<{ id: number; n: number } | null>(null);
   const [selectedConducts, setSelectedConducts] = useState<string[]>([]);
-  const [outcomeKey, setOutcomeKey] = useState<keyof typeof OUTCOMES>("estavel");
+  const [selectedHypothesis, setSelectedHypothesis] = useState<string | null>(null);
+  const [examsOrdered, setExamsOrdered] = useState<string[]>([]);
+  const [currentCase, setCurrentCase] = useState<Case>(FEATURED_CASE);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  // judgeState/score armazenados no lead screen via ResultScreen→LeadScreen
+  const [lastJudgeState, setLastJudgeState] = useState("estavel");
+  const [lastJudgeScore, setLastJudgeScore] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Clock
@@ -812,10 +1041,45 @@ export default function Game() {
     }, 220);
   }
 
-  function handleCondutaConfirm(sel: string[]) {
-    setSelectedConducts(sel);
-    setOutcomeKey(computeOutcome(sel));
+  async function generateCase(resetPhase: boolean = false) {
+    setIsGenerating(true);
+    setGenerateError("");
+    if (resetPhase) {
+      setPhase(0 as Phase);
+      setSeconds(0);
+      setXp(0);
+      setStreak(0);
+      setSelectedConducts([]);
+      setSelectedHypothesis(null);
+      setExamsOrdered([]);
+    }
+    try {
+      const res = await fetch("/api/generate-case", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (!data.case) throw new Error("Resposta inválida do servidor");
+      setCurrentCase(data.case);
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Erro ao gerar caso. Tente novamente.");
+      if (resetPhase) setCurrentCase(FEATURED_CASE);
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  function handleCondutaConfirm(hypothesisId: string | null, conductIds: string[]) {
+    setSelectedHypothesis(hypothesisId);
+    setSelectedConducts(conductIds);
     transitionTo(4);
+  }
+
+  function handleExamesAdvance(ordered: string[]) {
+    setExamsOrdered(ordered);
+    transitionTo(3);
   }
 
   function restart() {
@@ -824,7 +1088,10 @@ export default function Game() {
     setXp(0);
     setStreak(0);
     setSelectedConducts([]);
-    setOutcomeKey("estavel");
+    setSelectedHypothesis(null);
+    setExamsOrdered([]);
+    setCurrentCase(FEATURED_CASE);
+    setGenerateError("");
   }
 
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -844,31 +1111,81 @@ export default function Game() {
           )}
         </div>
         <PhaseNav current={phase} />
-        {phase > 0 && phase < 4 && (
-          <XPMeter xp={xp} streak={streak} />
-        )}
+        {phase > 0 && phase < 4 && <XPMeter xp={xp} streak={streak} />}
       </div>
 
       {/* Content */}
       <div className="av-content" ref={scrollRef}>
         <div className={`av-phase-anim${isExiting ? " exiting" : ""}`} key={phase}>
-          {phase === 0 && <IntroScreen onStart={() => transitionTo(1)} />}
-          {phase === 1 && <AnamneseScreen onAdvance={() => transitionTo(2)} onXP={awardXP} />}
-          {phase === 2 && <ExamesScreen onAdvance={() => transitionTo(3)} onXP={awardXP} />}
-          {phase === 3 && <CondutaScreen onConfirm={handleCondutaConfirm} onXP={awardXP} />}
-          {phase === 4 && <ResultScreen outcomeKey={outcomeKey} totalXP={xp} conducts={selectedConducts} onNext={() => transitionTo(5)} />}
-          {phase === 5 && <LeadScreen xp={xp} outcomeKey={outcomeKey} onRestart={restart} />}
+          {phase === 0 && (
+            <IntroScreen
+              medCase={currentCase}
+              onStart={() => {
+                setSelectedConducts([]);
+                setSelectedHypothesis(null);
+                setExamsOrdered([]);
+                setSeconds(0);
+                transitionTo(1);
+              }}
+              onGenerate={() => generateCase(false)}
+              isGenerating={isGenerating}
+              generateError={generateError}
+            />
+          )}
+          {phase === 1 && (
+            <AnamneseScreen
+              medCase={currentCase}
+              onAdvance={() => transitionTo(2)}
+              onXP={awardXP}
+            />
+          )}
+          {phase === 2 && (
+            <ExamesScreen
+              medCase={currentCase}
+              onAdvance={handleExamesAdvance}
+              onXP={awardXP}
+            />
+          )}
+          {phase === 3 && (
+            <CondutaScreen
+              medCase={currentCase}
+              onConfirm={handleCondutaConfirm}
+              onXP={awardXP}
+            />
+          )}
+          {phase === 4 && (
+            <ResultScreen
+              medCase={currentCase}
+              hypothesisId={selectedHypothesis}
+              selectedConducts={selectedConducts}
+              examsOrdered={examsOrdered}
+              timeUsed={Math.floor(seconds / 60)}
+              totalXP={xp}
+              onNext={() => transitionTo(5)}
+              onResult={(state, score) => {
+                setLastJudgeState(state);
+                setLastJudgeScore(score);
+              }}
+            />
+          )}
+          {phase === 5 && (
+            <LeadScreen
+              medCase={currentCase}
+              xp={xp}
+              judgeState={lastJudgeState}
+              judgeScore={lastJudgeScore}
+              onRestart={restart}
+              onGenerateNew={() => generateCase(true)}
+            />
+          )}
         </div>
 
-        {/* Footer visível na intro e no lead */}
         {(phase === 0 || phase === 5) && <FooterAvelis />}
       </div>
 
       {/* XP Popup */}
       {xpPopup && (
-        <div className="av-xp-pop" key={xpPopup.id}>
-          +{xpPopup.n} XP
-        </div>
+        <div className="av-xp-pop" key={xpPopup.id}>+{xpPopup.n} XP</div>
       )}
     </div>
   );
